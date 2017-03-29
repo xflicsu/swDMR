@@ -1,10 +1,9 @@
 
-swDMR: A sliding window approach to identify differentially 
-methylated regions from whole genome bisulfite sequencing.
+swDMR: A sliding window approach to identify differentially methylated regions from whole genome bisulfite sequencing.
  
 ==Software discription
  
-	swDMR is a sliding window approach, which is used to identify differentially methylated regions (DMR) from bisulfite sequencing dataset at single base resolution. The dataset, like whole genome bisulfite sequencing (WGBS) or reduced representation bisulfite sequencing (RRBS) with the same coverage region of samples, are suitable for swDMR. This software integrated several useful statistics methods, satisfying to two or multiple samples test. In addition, swDMR provides genomic features annotation with BED or GFF file. It can also produce WIG format file to upload to UCSC genome browser [1] for DMR visualization.
+   swDMR is a sliding window approach, which is used to identify differentially methylated regions (DMR) from bisulfite sequencing dataset at single base resolution. The dataset, like whole genome bisulfite sequencing (WGBS) or reduced representation bisulfite sequencing (RRBS) with the same coverage region of samples, are suitable for swDMR. This software integrated several useful statistics methods, satisfying to two or multiple samples test. In addition, swDMR provides genomic features annotation with BED or GFF file. It can also produce WIG format file to upload to UCSC genome browser [1] for DMR visualization.
 This software and example dataset are available to download from:
 http://122.228.158.106/swDMR
  
@@ -34,10 +33,10 @@ http://122.228.158.106/swDMR
 >./swDMR --help
 
 Discription: This program is used to detect DMRs, which can also annotate DMRs through user's defination of BED format file.
- Usage:
+Usage:
   Input methylation file format:
-    must contain follow information (separated by table "\t")
-    you can assign the corresponding information contained in your files
+  must contain follow information (separated by table "\t")
+  you can assign the corresponding information contained in your files
  
 		information required: chromosome position ctype methyl_reads unmethy_reads
  
@@ -58,11 +57,11 @@ Discription: This program is used to detect DMRs, which can also annotate DMRs t
   -o | --outdir	swDMR result directory
   -co | --coverage	lowest coverage of cytosine reads to use, default <4>
   -s | --statistics	choose one method to detect DMRs
-	< T_test||Kolmogorov||Fisher||ChiSquare||Wilcoxon||ANOVA||Kruskal >
+		< T_test||Kolmogorov||Fisher||ChiSquare||Wilcoxon||ANOVA||Kruskal >
         if input samples == 2 --statistics should choose
-< T_test||Kolmogorov||Fisher||ChiSquare||Wilcoxon >
+		< T_test||Kolmogorov||Fisher||ChiSquare||Wilcoxon >
         if input samples >= 3 -statistics could choose	
-< ANOVA||Kruskal >
+		< ANOVA||Kruskal >
   -CT | --cytosineType	cytosine type < C|CG||CHG||CHH >
   -w | --window	a sliding window to statistics, default <1000>
   -N | --points	lowest number of selected type of cytosine in the window, default <10>
@@ -79,6 +78,6 @@ Discription: This program is used to detect DMRs, which can also annotate DMRs t
   -g | --Gene	BED file of gene coordinates
   --CGI	cpgIsland file:
 	http://hgdownload.cse.ucsc.edu/goldenPath/hg18/database/cpgIslandExt.txt.gz. 
-		The other release or species cpgIsland file can also be downloaded from UCSC genome browser
+	The other release or species cpgIsland file can also be downloaded from UCSC genome browser
   --left	left side length of DMR in a map, default <1000>
   --right	right side length of DMR in a map, default <1000>

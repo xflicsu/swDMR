@@ -1,0 +1,241 @@
+#!/usr/bin/perl -w
+
+=head1 Description:
+
+swDMR is a free software using a sliding-window approach to identify differentially methylated regions from whole-genome bisulfite sequencing.  
+
+
+=head1 Version:
+
+    Version: 1.0.0
+    Created: 2012
+    Updated: June 14th, 2013
+    Last Mod: Change the FDR process.
+
+=head1 Main work log:
+
+ 1. swDMR get.
+    create statistics method pm file
+    sliding window to get swDMR
+    FDR creation pvalue of swDMR   
+ 2. Distribution of swDMR.
+    swDMR own length distribution, methylation level cluster.
+ 3. Annotation and heatmap
+    get wig/bed/gff file used to UCSC genome browser
+	a. Annotation of swDMR with gff/bed file.
+	b. Annotation of swDMR with gff/bed file.
+ 4. Draw DMR map with left and right side.
+
+=head1 Contact:
+
+    Author: Xianfeng Li (xiaofeng)
+    E-mail: xfliwz@gmail.com
+    Institute: Institute of Genomic Medicine, Wenzhou Medical College
+
+=head1 Input:
+
+    Input methylation file format must contain follow information (separated by table "\t"), 
+    you can assign the corresponding information contained in your files;
+    information required: 
+      chromosome    position    ctype    methyl_reads    unmethy_reads
+        chr1    123    CHG    5    10
+
+=head1 Example:
+
+ swDMR --samples a,b --name a,b --outdir outdir --statistics Fisher --cytosineType CG --window 1k --stepSize 100 --length 100 --pvalue 0.01 --coverage 4 --fold 2 --fdr 0.05 --Rbin /usr/bin/R --chromosome 1 --position 2 --ctype 4 --methy 7 --unmethy 8
+	
+=head1 Opitions:
+	
+ Basic swDMR options:
+  -h | --help	print this information on screen
+  -sam | --samples	input samples' methylation files separated by	comma "," < a,b,c,...,g,h >
+  -na | --name	input samples' names separated by comma "," < a,b,c,...,g,h >
+  -chp | --chromosome	column of chromosome in your file, default <1>
+  -pos | --position	column of position in your file, default <2>
+  -cp | --ctype	column of cytosine type in your file, default <3>
+  -mp | --methy	column of methy reads in your file, default <4>
+  -up | --unmethy	column of unmethy reads in your file, default <5>
+  -o | --outdir	swDMR result directory
+  -co | --coverage	lowest coverage of cytosine reads to use, default <4>
+  -s | --statistics	chose one method to detect DMRs
+	< T_test||Kolmogorov||Fisher||ChiSquare||Wilcoxon||ANOVA||Kruskal >
+        if input samples == 2 --statistics should chose	< T_test||Kolmogorov||Fisher||ChiSquare||Wilcoxon >
+        if input samples >= 3 -statistics could chose	< ANOVA||Kruskal >
+  -CT | --cytosineType	cytosine type < C|CG||CHG||CHH >
+  -w | --window	< 1k||2k||3k||... >
+  -N | --points	lowest number of cytosine in the window, default <5>
+  -z | --stepSize	step size by bp. <50||100||...>
+  -f | --fold 	max/min methylation level difference <2>
+  -d | --diff 	difference of max-min methylation level <0.1>
+  -len | --length	lowest length to join two fragment into one by bp, default <100>
+  -V | --pvalue	p value judge as a DMR, default <0.01>
+  -R | --Rbin	path of R bin '/path/R'
+  -fdr	fdr to adjust DMR p value, default <0.01>
+  -pro | --processes	parallel processes for DMR test and annotation, default <1>
+ Annotation and DMR maps:
+  -a | --annotation	your annotation file should be bed of gff format < bed||gff >
+  -g | --Gene	BED file of gene coordinates
+  --CGI	cpgIsland file: http://hgdownload.cse.ucsc.edu/goldenPath/hg19/database/cpgIslandExt.txt.gz, 
+		other species can also be download from UCSC genome browser
+  --left	left side length of DMR in a map, default <1000> bp
+  --right	right side length of DMR in a map, default <1000> bp
+
+  
+=cut
+
+
+use strict;
+use FindBin;
+use lib "$FindBin::Bin/lib";
+use lib "$FindBin::Bin/lib/module/lib64/perl5/site_perl";
+use lib "$FindBin::Bin/lib/module/lib64/perl5";
+use lib "$FindBin::Bin/lib/module/lib/perl5";
+use lib "$FindBin::Bin/lib/module/lib/perl5/site_perl";
+use lib "$FindBin::Bin/lib/module/lib/perl";
+use lib "$FindBin::Bin/lib/module/share/perl";
+use Cwd::Ext ':all';
+use Getopt::Long;
+use File::Basename qw(dirname);
+use statistics;
+use Annotation;
+our ($help,$samples,$statistics,$outdir,$annotation,$window,$fold);
+our ($bedtools,$fdr,$Rbin,$pvalue,$cytosineType,$stepSize,$length,$name,$diff);
+our ($chrom,$pos,$ctype,$methy,$unmethy,$coverage,$points,$prosesses);
+our ($CGI,$gene,$left,$right);
+GetOptions(
+	"h|help|?" => \$help,"sam|samples=s" => \$samples,"na|name=s" => \$name,"chp|chromosome=i" => \$chrom,
+	"pos|position=i" => \$pos,"cp|ctype=i" => \$ctype,"mp|methy=i" => \$methy,"up|unmethy=i" => \$unmethy,
+	"s|statistics=s" => \$statistics,"o|outdir=s" => \$outdir,"len|length=i" => \$length,"a|annotation=s" => \$annotation,
+	"CGI=s" => \$CGI,"g|Gene=s" => \$gene,"left=s" => \$left,"right=s" => \$right,"w|window=s" => \$window,
+	"N|points=i" => \$points,"CT|cytosineType=s" => \$cytosineType,"z|stepSize=i" => \$stepSize,"f|fold=s" => \$fold,
+	"d|diff=f" => \$diff,"pro|processes=i" => \$prosesses,"co|coverage=i" => \$coverage,"V|pvalue=s" => \$pvalue,
+	"R|Rbin=s" => \$Rbin,"fdr=s" => \$fdr,
+);
+die `pod2text $0` if $help or !$samples;
+if($window){
+	$window=$1*1000 if $window=~/^(\S+?)k/i;
+}
+if($stepSize){
+	$stepSize=$1*1000 if $stepSize=~/^(\S+?)k/i;
+}
+
+#*****default options*****#
+$Rbin||=`which R`;
+chomp($Rbin);
+#`export $Rbin`;
+$outdir||="$FindBin::Bin/swDMRResult";
+$chrom||=1;$pos||=2;$ctype||=3;
+$methy||=4;$unmethy||=5;
+$window||=1000;$stepSize||=100;
+$length||=100;$pvalue||=0.01;
+$fdr||=0.01;$points||=5;
+$fold||=2;$diff||=0.1;
+$cytosineType||="CG";
+$prosesses||=1;$coverage||=4;
+$left||=1000;$right||=1000;
+$bedtools="$FindBin::Bin/bin/intersectBed";
+$left||=1000;$right||=1000;
+our $Script="$FindBin::Bin/src/";
+our $WigData;
+mkdir "$outdir",print "Create result directory\n" unless -d "$outdir";
+`chmod 775 $outdir`;
+##get absolute path of outdir
+$outdir=abs_path_nd($outdir);
+if($annotation){
+	$annotation=abs_path_nd($annotation);
+}
+print "swDMR results are in $outdir\n";
+#*****               *****#
+my @sam_files=split(/,/,$samples);
+#print join"\n",@sam_files;
+my $samNumber=@sam_files;
+my $method_flag=Method_chose_test(@sam_files);
+if($method_flag!=1){
+	exit;
+}
+my @samName=split(/,/,$name);
+print "Start searching DMRs at ",`date`,"\n";
+SearchDMRs();
+print "Use FDR to readjust DMRs at ",`date`,"\n";
+FDR();
+print "Extending DMRs with overlap\n";
+ExtendDMRs();
+print "swDMR boxplot at ",`date`,"\n";
+Boxplot();
+print "swDMR heatmap at ",`date`,"\n";
+Heatmap();
+CatWig(\@samName);
+print "DMRs distribution statistics at ",`date`,"\n";
+if($annotation){
+	my ($format,$FeatureIndex)=TestFormat(\$annotation);
+	if($format eq "resistance"){
+		print STDERR "Annotation file format is not gff or bed, please try again!\n";
+		exit;
+	}
+	print "Start annotate DMRs with files at ",`date`,"\n";
+	mkdir "$outdir/Annotation",print "Create annotation directory\n" unless -d "$outdir/Annotation";
+	`chmod 775 $outdir/Annotation`;
+	Annotation();
+	print "Finish annotating DMRs with files at ",`date`,"\n";
+}
+if($CGI||$gene){
+	DMRmap();
+	print "swDMR have been done at ",`date`,"\n";
+}
+print "Finish all DMRs work at ",`date`,"\n";
+sub Annotation{
+	system("perl $Script/AnnotDMRs.pl $outdir/swDMR.fdr.low.Extend $bedtools $annotation $outdir $Rbin");
+}
+sub ExtendDMRs{
+#	print "perl $Script/Extend.pl $outdir $samNumber $statistics $length $fold $diff $pvalue $points\n";
+	print "perl $Script/split.Extend.pl $outdir $length $prosesses \"$outdir $samNumber $statistics $length $fold $diff $pvalue $points\"\n";
+	system("perl $Script/split.Extend.pl $outdir $length $prosesses \"$outdir $samNumber $statistics $length $fold $diff $pvalue $points\"");
+	#system("perl $Script/Extend.pl $outdir $samNumber $statistics $length $fold $diff $pvalue $points");
+}
+sub FDR{
+	system("perl $Script/FDR.pl $outdir/swDMR.tmp $Rbin $fdr");
+}
+sub SearchDMRs{ ### sliding by size
+	print "perl $Script/SlidingAndCreatWig.parallel.pl --type $cytosineType --samples $samples --chromosome $chrom --position $pos --ctype $ctype --methy $methy --unmethy $unmethy --name $name --w $window --points $points --outdir $outdir --step $stepSize --p_threshold $pvalue --statistics $statistics --coverage $coverage --fold $fold\n"; 
+	system("perl $Script/SlidingAndCreatWig.parallel.pl --type $cytosineType --samples $samples --chromosome $chrom --position $pos --ctype $ctype --methy $methy --unmethy $unmethy --name $name --w $window --points $points --outdir $outdir --step $stepSize --p_threshold $pvalue --statistics $statistics --coverage $coverage --fold $fold --diff $diff --Processes $prosesses");
+}
+sub Boxplot{
+	`perl $Script/Boxplot.pl $name $outdir/swDMR.fdr.low.Extend $outdir/Boxplot $Rbin&`;
+}
+sub Heatmap{
+	`perl $Script/Cluster.pl $name $outdir/swDMR.fdr.low.Extend $outdir/Heatmap $Rbin&`;
+}
+sub CatWig{#####DMR inject into wig-file ???????
+	my $samName=shift;
+	system("perl $Script/DMRline.pl $outdir/swDMR.fdr.low.Extend");
+	if(!$WigData){
+		my $cat="cat $outdir/swDMR.fdr.low.Extend.line ";
+		foreach(@$samName){
+			$cat.="$outdir/$_.wig ";
+		}
+		`$cat >$outdir/all.wig;gzip -f $outdir/all.wig;`;
+		$WigData="$outdir/all.wig.gz";
+	}
+	mkdir "$outdir/Distribution" unless -d "$outdir/Distribution";
+	`chmod 775 $outdir/Distribution`;
+	system("perl $Script/Distribution.pl $outdir/swDMR.fdr.low.Extend $outdir/Distribution swDMR $Rbin");
+}
+sub DMRmap{
+	print "perl $Script/DMRmap.R.pl -dmr1 $outdir/swDMR.fdr.low.Extend -dmr2 $outdir/swDMR.fdr.low.Extend -s $samples -a $name -type $cytosineType -methy $methy -unmethy $unmethy -pos $pos --chromo $chrom -ctype $ctype -cov $coverage -o $outdir -g $gene --CGI $CGI -l 1000 --right 1000 --Rbin $Rbin \n";
+	system("perl $Script/DMRmap.R.pl -dmr1 $outdir/swDMR.fdr.low.Extend -dmr2 $outdir/swDMR.fdr.low.Extend -s $samples -a $name -type $cytosineType -methy $methy -unmethy $unmethy -pos $pos --chromo $chrom -ctype $ctype -cov $coverage -o $outdir -g $gene --CGI $CGI -l $left --right $right --Rbin $Rbin");
+	print "perl $Script/DMRmap.R.Plot.parallel.pl $outdir/DMRsMap/DMRmap.R.list $Rbin $prosesses\n";
+	system("perl $Script/DMRmap.R.Plot.parallel.pl $outdir/DMRsMap/DMRmap.R.list $Rbin $prosesses");
+}
+sub Method_chose_test{
+	my (@sam_files)=@_;
+	if(@sam_files<2){
+		print STDERR "\tError: You have less than 2 samples input in the program! Please try again!\n";
+	}elsif(@sam_files==2&&(!$statistics=~/[(t\-test)|(fisher)|(chi\-square)|(wilcoxon)]/i)){
+		print STDERR "\tError: You only have two samples, please chose one method from [t-test||fisher||chi-square||wilcoxon] as your statistics method!\n";
+		exit;
+	}elsif(@sam_files>=3&&(!$statistics=~/[(ANOVA)|(Kruskall\-Wallis)]/i)){
+		print STDERR "\tError: You have multiple samples, please chose one method from [ANOVA||Kruskall-Wallis] as your statistics method!\n";
+       		exit;
+	}
+	return 1;
+}

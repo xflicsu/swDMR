@@ -1,0 +1,48 @@
+#!/bin/bash
+
+#install intersectBed tools of bedtools
+cp src/intersect.in ./
+make --makefile=intersect.in
+rm intersect.in
+pwd_dir=`pwd`
+echo $pwd_dir
+#install modules required for R statistics
+export PERL5LIB=$pwd_dir/lib/module:$pwd_dir/lib/module/lib64/perl5/:$pwd_dir/lib/module/lib64/perl5/site_perl:$pwd_dir/lib/module/lib/perl5/:$pwd_dir/lib/module/lib/perl5/site_perl:$pwd_dir/lib/module/share/perl:$pwd_dir/lib/module/lib/perl:$PERL5LIB
+cd "modules"
+for m in `cat tmp`
+do
+	echo $m
+	tar xzf $m
+done
+
+for m in `cat tmp|sed 's/://'|sed 's/.tar.gz//'`
+do
+	cd $m
+	echo $m
+	if [ -f Makefile.PL ]
+		then
+		perl Makefile.PL PREFIX=$pwd_dir/lib/module
+		make
+#	make test
+		make install
+		else
+		perl Build.PL --prefix $pwd_dir/lib/module
+		./Build
+		./Build install
+	fi
+	cd ..
+done
+
+##install R packages
+if [ -d "$pwd_dir/lib/R-packages" ]
+	then
+	echo "$pwd_dir/lib/R-packages exists"
+	else
+	mkdir "$pwd_dir/lib/R-packages"
+fi
+cd "R-package"
+for package in bitops_1.0-6.tar.gz caTools_1.17.tar.gz gtools_3.4.1.tar.gz gdata_2.13.3.tar.gz KernSmooth_2.23-12.tar.gz gplots_2.13.0.tar.gz pspline_1.0-16.tar.gz
+do
+	R CMD INSTALL $package -l ../../lib/R-packages
+done
+

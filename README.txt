@@ -4,8 +4,6 @@ swDMR: A sliding window approach to identify differentially methylated regions f
 ==Software discription
  
    swDMR is a sliding window approach, which is used to identify differentially methylated regions (DMR) from bisulfite sequencing dataset at single base resolution. The dataset, like whole genome bisulfite sequencing (WGBS) or reduced representation bisulfite sequencing (RRBS) with the same coverage region of samples, are suitable for swDMR. This software integrated several useful statistics methods, satisfying to two or multiple samples test. In addition, swDMR provides genomic features annotation with BED or GFF file. It can also produce WIG format file to upload to UCSC genome browser [1] for DMR visualization.
-This software and example dataset are available to download from:
-http://122.228.158.106/swDMR
  
 ==Platform and environment
     

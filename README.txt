@@ -80,3 +80,9 @@ Usage:
 	The other release or species cpgIsland file can also be downloaded from UCSC genome browser
   --left	left side length of DMR in a map, default <1000>
   --right	right side length of DMR in a map, default <1000>
+  
+  
+  
+### output fomart
+https://github.com/xflicsu/swDMR/wiki/About-swDMR#output-of-swdmr
+

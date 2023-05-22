@@ -83,6 +83,6 @@ Usage:
   
   
   
-### output fomart
+## output fomart
 https://github.com/xflicsu/swDMR/wiki/About-swDMR#output-of-swdmr
 
